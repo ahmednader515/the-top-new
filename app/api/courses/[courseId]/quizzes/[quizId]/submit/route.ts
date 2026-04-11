@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { parseQuizOptions } from "@/lib/utils";
-import { hasActiveCourseAccess } from "@/lib/course-access";
+import { canAccessCourseContentItem } from "@/lib/course-access";
 
 export async function POST(
     req: Request,
@@ -17,8 +17,10 @@ export async function POST(
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        // Check if user has access to the course
-        const hasAccess = await hasActiveCourseAccess(userId, resolvedParams.courseId);
+        const hasAccess = await canAccessCourseContentItem(userId, resolvedParams.courseId, {
+            id: resolvedParams.quizId,
+            type: "quiz",
+        });
         if (!hasAccess) {
             return new NextResponse("Course access required", { status: 403 });
         }

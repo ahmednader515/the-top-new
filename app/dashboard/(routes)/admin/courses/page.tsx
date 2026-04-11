@@ -84,7 +84,7 @@ const CoursesPage = async ({ searchParams }: CoursesPageProps) => {
                       title: string;
                       description: string | null;
                       price: number;
-                      durationDays: number;
+                      chaptersPerCourse: number;
                       targetSubject: string;
                       features: string[];
                       isActive: boolean;
@@ -98,7 +98,7 @@ const CoursesPage = async ({ searchParams }: CoursesPageProps) => {
                   title,
                   description,
                   price,
-                  "durationDays" AS "durationDays",
+                  "chaptersPerCourse" AS "chaptersPerCourse",
                   "targetSubject" AS "targetSubject",
                   features,
                   "isActive" AS "isActive",

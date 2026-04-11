@@ -12,6 +12,7 @@ import {
   SUBJECT_OPTIONS,
   SUBJECT_LABEL_BY_VALUE,
 } from "@/lib/academics";
+import { durationDaysForChapters } from "@/lib/subscription-plans";
 import { SubscriptionPurchaseButton } from "./_components/subscription-purchase-button";
 import { BalanceSection } from "./_components/balance-section";
  
@@ -55,20 +56,52 @@ export default async function SubscriptionsPage({ searchParams }: SubscriptionsP
   });
 
   const now = new Date();
-  const testNowIso = null;
-  const activeSubscriptionPurchase = await db.purchase.findFirst({
+
+  const activeChapterSubscription = await db.purchase.findFirst({
     where: {
       userId: session.user.id,
       status: "ACTIVE",
+      chaptersLimit: { not: null },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { chaptersLimit: true },
+  });
+
+  const earliestChapterSubscriptionExpiry = await db.purchase.findFirst({
+    where: {
+      userId: session.user.id,
+      status: "ACTIVE",
+      chaptersLimit: { not: null },
+      expiresAt: { gt: now },
+    },
+    orderBy: { expiresAt: "asc" },
+    select: { expiresAt: true },
+  });
+
+  const chapterSubDaysRemaining =
+    earliestChapterSubscriptionExpiry != null
+      ? Math.max(
+          0,
+          Math.ceil(
+            (earliestChapterSubscriptionExpiry.expiresAt.getTime() - now.getTime()) /
+              (24 * 60 * 60 * 1000)
+          )
+        )
+      : null;
+
+  const legacyTimedSubscription = await db.purchase.findFirst({
+    where: {
+      userId: session.user.id,
+      status: "ACTIVE",
+      chaptersLimit: null,
       expiresAt: { not: null, gt: now },
     },
     orderBy: { expiresAt: "desc" },
-    select: {
-      expiresAt: true,
-    },
+    select: { expiresAt: true },
   });
 
-  const activeSubscriptionExpiresAt = activeSubscriptionPurchase?.expiresAt ?? null;
+  const activeSubscriptionExpiresAt = legacyTimedSubscription?.expiresAt ?? null;
   const daysRemaining =
     activeSubscriptionExpiresAt !== null
       ? Math.max(
@@ -113,7 +146,7 @@ export default async function SubscriptionsPage({ searchParams }: SubscriptionsP
       title: string;
       description: string | null;
       price: number;
-      durationDays: number;
+      chaptersPerCourse: number;
       targetSubject: string;
       features: string[];
       isActive: boolean;
@@ -129,7 +162,7 @@ export default async function SubscriptionsPage({ searchParams }: SubscriptionsP
             title,
             description,
             price,
-            "durationDays" AS "durationDays",
+            "chaptersPerCourse" AS "chaptersPerCourse",
             "targetSubject" AS "targetSubject",
             features,
             "isActive" AS "isActive",
@@ -146,7 +179,7 @@ export default async function SubscriptionsPage({ searchParams }: SubscriptionsP
             title,
             description,
             price,
-            "durationDays" AS "durationDays",
+            "chaptersPerCourse" AS "chaptersPerCourse",
             "targetSubject" AS "targetSubject",
             features,
             "isActive" AS "isActive",
@@ -168,6 +201,38 @@ export default async function SubscriptionsPage({ searchParams }: SubscriptionsP
 
   return (
     <div className="p-4 md:p-6 space-y-6" dir="rtl">
+      {activeChapterSubscription && (
+        <section className="rounded-xl border bg-gradient-to-l from-sky-50 to-white p-4 md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-sky-100 px-3 py-1 text-xs font-extrabold text-sky-800">
+                أنت مشترك الآن
+              </div>
+              <h2 className="mt-2 text-lg font-extrabold md:text-xl">اشتراكك فعّال (دروس + مدة)</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                لكل كورس: عدد محدد من الدروس بالترتيب، ضمن فترة زمنية للخطة. يمكنك إنهاء الدروس بسرعتك داخل
+                هذه المدة. التجديد أو شراء خطة أعلى يمد المدة و/أو يزيد عدد الدروس.
+              </p>
+              {earliestChapterSubscriptionExpiry?.expiresAt && chapterSubDaysRemaining !== null && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  أقرب انتهاء لصلاحية اشتراكك على أحد الكورسات:{" "}
+                  <span className="font-bold text-slate-900">
+                    {earliestChapterSubscriptionExpiry.expiresAt.toLocaleDateString("ar-EG")}
+                  </span>
+                </p>
+              )}
+            </div>
+            {earliestChapterSubscriptionExpiry?.expiresAt && chapterSubDaysRemaining !== null && (
+              <div className="rounded-xl border bg-white p-4 text-center shadow-sm">
+                <p className="text-xs font-bold text-muted-foreground">المتبقي (أقرب كورس)</p>
+                <p className="mt-1 text-3xl font-extrabold text-sky-600">{chapterSubDaysRemaining}</p>
+                <p className="text-sm font-bold">يوم</p>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {activeSubscriptionExpiresAt && daysRemaining !== null && (
         <section className="rounded-xl border bg-gradient-to-l from-emerald-50 to-white p-4 md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -175,7 +240,7 @@ export default async function SubscriptionsPage({ searchParams }: SubscriptionsP
               <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700">
                 أنت مشترك الآن
               </div>
-              <h2 className="mt-2 text-lg font-extrabold md:text-xl">اشتراكك فعّال</h2>
+              <h2 className="mt-2 text-lg font-extrabold md:text-xl">اشتراكك فعّال (قديم — بالتاريخ)</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 ينتهي في{" "}
                 <span className="font-bold text-slate-900">
@@ -258,18 +323,16 @@ export default async function SubscriptionsPage({ searchParams }: SubscriptionsP
                     <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{plan.description}</p>
                   )}
                   <p className="mt-4 text-2xl font-bold text-brand">{plan.price} جنيه</p>
-                  <p className="mt-1 text-xs text-muted-foreground">المدة: {plan.durationDays} يوم</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {plan.chaptersPerCourse} دروس لكل كورس — {durationDaysForChapters(plan.chaptersPerCourse)}{" "}
+                    يوماً لكل كورس (تُضاف المدة عند التجديد)
+                  </p>
                   <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
                     {plan.features.slice(0, 3).map((feature) => (
                       <li key={feature}>• {feature}</li>
                     ))}
                   </ul>
-                  <SubscriptionPurchaseButton
-                    planId={plan.id}
-                    planTitle={plan.title}
-                    isSubscribed={Boolean(activeSubscriptionExpiresAt)}
-                    className="mt-4"
-                  />
+                  <SubscriptionPurchaseButton planId={plan.id} planTitle={plan.title} className="mt-4" />
                   <a
                     href={`${WHATSAPP_BASE}?text=${planMessage}`}
                     target="_blank"

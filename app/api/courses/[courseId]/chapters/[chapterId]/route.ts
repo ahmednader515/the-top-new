@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { hasActiveCourseAccess } from "@/lib/course-access";
+import { canAccessCourseContentItem } from "@/lib/course-access";
 
 export async function GET(
   req: Request,
@@ -49,7 +49,10 @@ export async function GET(
     const isAdmin = user?.role === "ADMIN";
     const isCourseOwner = chapter.course.userId === userId;
     if (!isAdmin && !chapter.isFree && !isCourseOwner) {
-      const hasAccess = await hasActiveCourseAccess(userId, courseId);
+      const hasAccess = await canAccessCourseContentItem(userId, courseId, {
+        id: chapterId,
+        type: "chapter",
+      });
       if (!hasAccess) {
         return new NextResponse("Course access required", { status: 403 });
       }

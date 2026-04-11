@@ -9,6 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import {
+  SUBSCRIPTION_MONTHLY_CHAPTERS,
+  SUBSCRIPTION_MONTHLY_DAYS,
+  SUBSCRIPTION_TERM_CHAPTERS,
+  SUBSCRIPTION_TERM_DAYS,
+  defaultTitleForChapters,
+} from "@/lib/subscription-plans";
+
 type SubjectOption = {
   value: string;
   label: string;
@@ -19,7 +27,7 @@ type SubscriptionPlanItem = {
   title: string;
   description: string | null;
   price: number;
-  durationDays: number;
+  chaptersPerCourse: number;
   targetSubject: string;
   features: string[];
   isActive: boolean;
@@ -27,11 +35,12 @@ type SubscriptionPlanItem = {
   createdAt: string;
 };
 
+type PlanKind = "MONTHLY" | "TERM";
+
 type FormState = {
-  title: string;
+  planKind: PlanKind;
   description: string;
   price: string;
-  durationDays: string;
   targetSubject: string;
   featuresText: string;
   isActive: "true" | "false";
@@ -39,15 +48,22 @@ type FormState = {
 };
 
 const INITIAL_FORM: FormState = {
-  title: "",
+  planKind: "MONTHLY",
   description: "",
   price: "",
-  durationDays: "30",
   targetSubject: "ALL_SUBJECTS",
   featuresText: "",
   isActive: "true",
   sortOrder: "0",
 };
+
+function chaptersForKind(kind: PlanKind): number {
+  return kind === "TERM" ? SUBSCRIPTION_TERM_CHAPTERS : SUBSCRIPTION_MONTHLY_CHAPTERS;
+}
+
+function kindFromChapters(chapters: number): PlanKind {
+  return chapters === SUBSCRIPTION_TERM_CHAPTERS ? "TERM" : "MONTHLY";
+}
 
 export function SubscriptionPlansAdminClient({
   initialPlans,
@@ -93,22 +109,15 @@ export function SubscriptionPlansAdminClient({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const title = form.title.trim();
     const description = form.description.trim();
     const price = Number(form.price);
-    const durationDays = Number(form.durationDays);
     const sortOrder = Number(form.sortOrder || 0);
     const features = parseFeatures(form.featuresText);
+    const chaptersPerCourse = chaptersForKind(form.planKind);
+    const title = defaultTitleForChapters(chaptersPerCourse);
 
-    if (
-      !title ||
-      !Number.isFinite(price) ||
-      price <= 0 ||
-      !Number.isInteger(durationDays) ||
-      durationDays <= 0 ||
-      features.length === 0
-    ) {
-      toast.error("أدخل عنواناً وسعراً ومدة صحيحة ومميزات للاشتراك");
+    if (!Number.isFinite(price) || price <= 0 || features.length === 0) {
+      toast.error("أدخل سعراً صحيحاً ومميزات للاشتراك");
       return;
     }
 
@@ -118,7 +127,7 @@ export function SubscriptionPlansAdminClient({
         title,
         description,
         price,
-        durationDays,
+        chaptersPerCourse,
         targetSubject: form.targetSubject,
         features,
         isActive: form.isActive === "true",
@@ -156,10 +165,9 @@ export function SubscriptionPlansAdminClient({
   const handleEdit = (plan: SubscriptionPlanItem) => {
     setEditingPlanId(plan.id);
     setForm({
-      title: plan.title,
+      planKind: kindFromChapters(plan.chaptersPerCourse),
       description: plan.description ?? "",
       price: String(plan.price),
-      durationDays: String(plan.durationDays),
       targetSubject: plan.targetSubject,
       featuresText: plan.features.join("\n"),
       isActive: plan.isActive ? "true" : "false",
@@ -203,13 +211,36 @@ export function SubscriptionPlansAdminClient({
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">عنوان الخطة</label>
-              <Input
-                value={form.title}
-                onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                placeholder="مثال: اشتراك الترم"
-              />
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium">نوع الخطة</label>
+              <Select
+                value={form.planKind}
+                onValueChange={(value) =>
+                  setForm((prev) => ({ ...prev, planKind: value as PlanKind }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="اختر النوع" />
+                </SelectTrigger>
+                <SelectContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={6}
+                  className="max-h-64 overflow-y-auto"
+                >
+                  <SelectItem value="MONTHLY">
+                    شهري — {SUBSCRIPTION_MONTHLY_CHAPTERS} دروس لكل كورس، {SUBSCRIPTION_MONTHLY_DAYS} يوماً
+                  </SelectItem>
+                  <SelectItem value="TERM">
+                    ترم — {SUBSCRIPTION_TERM_CHAPTERS} درساً لكل كورس، {SUBSCRIPTION_TERM_DAYS} يوماً
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                العنوان يُحفظ تلقائياً ({defaultTitleForChapters(chaptersForKind(form.planKind))}). الوصول
+                يجمع بين عدد الدروس بالترتيب ومدة الخطة؛ عند التجديد تُضاف المدة من نهاية الفترة الحالية لكل
+                كورس.
+              </p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">السعر (جنيه)</label>
@@ -219,16 +250,6 @@ export function SubscriptionPlansAdminClient({
                 step="0.01"
                 value={form.price}
                 onChange={(e) => setForm((prev) => ({ ...prev, price: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">مدة الاشتراك (بالأيام)</label>
-              <Input
-                type="number"
-                min="1"
-                step="1"
-                value={form.durationDays}
-                onChange={(e) => setForm((prev) => ({ ...prev, durationDays: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
@@ -335,8 +356,11 @@ export function SubscriptionPlansAdminClient({
                       <div>
                         <p className="font-semibold">{plan.title}</p>
                         <p className="text-sm text-muted-foreground">
-                          {subjectLabel} • {plan.price} جنيه • {plan.durationDays} يوم • ترتيب {plan.sortOrder} •{" "}
-                          {plan.isActive ? "مفعلة" : "غير مفعلة"}
+                          {subjectLabel} • {plan.price} جنيه • {plan.chaptersPerCourse} دروس/كورس •{" "}
+                          {plan.chaptersPerCourse === SUBSCRIPTION_TERM_CHAPTERS
+                            ? SUBSCRIPTION_TERM_DAYS
+                            : SUBSCRIPTION_MONTHLY_DAYS}{" "}
+                          يوم/كورس • ترتيب {plan.sortOrder} • {plan.isActive ? "مفعلة" : "غير مفعلة"}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">

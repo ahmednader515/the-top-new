@@ -142,6 +142,8 @@ model Purchase {
     courseId String
     status String @default("ACTIVE")
     expiresAt DateTime?
+    /// When set, only the first N published chapters (by course content order) are included; null means full course access.
+    chaptersLimit Int?
     purchaseCodeId String? // Reference to the code used, if any
     user User @relation(fields: [userId], references: [id], onDelete: Cascade)
     course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -193,7 +195,8 @@ model SubscriptionPlan {
     title String
     description String? @db.Text
     price Float
-    durationDays Int @default(30)
+    /// Chapters included per course for this plan (monthly = 4, term = 12). Not a time limit.
+    chaptersPerCourse Int @default(4)
     targetSubject String @default("ALL_SUBJECTS")
     features String[]
     isActive Boolean @default(true)

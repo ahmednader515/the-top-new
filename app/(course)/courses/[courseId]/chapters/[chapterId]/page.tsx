@@ -255,9 +255,10 @@ const ChapterPage = () => {
           <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-muted">
             <Lock className="h-8 w-8 text-slate-700" />
           </div>
-          <h2 className="text-xl font-extrabold">انتهى اشتراكك</h2>
+          <h2 className="text-xl font-extrabold">هذا الدرس غير مشمول في خطتك</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            صلاحية اشتراكك انتهت، لذلك لا يمكنك مشاهدة هذا الدرس الآن. قم بتجديد الاشتراك ليعمل مرة أخرى.
+            خطتك تتيح عدداً محدداً من الدروس لكل كورس بالترتيب، أو انتهت صلاحية اشتراكك السابق. يمكنك ترقية
+            الخطة أو التجديد من صفحة الاشتراكات.
           </p>
           <div className="mt-5 grid gap-2">
             <Button
@@ -265,7 +266,7 @@ const ChapterPage = () => {
               onClick={() => router.push(`/dashboard/subscriptions`)}
               className="h-11 text-base font-semibold bg-brand hover:bg-brand/90"
             >
-              تجديد الاشتراك
+              خطط الاشتراك
             </Button>
             <Button
               type="button"

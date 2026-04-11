@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { hasActiveCourseAccess } from "@/lib/course-access";
+import { canAccessCourseContentItem } from "@/lib/course-access";
 
 export async function GET(
     req: Request,
@@ -24,6 +24,7 @@ export async function GET(
             select: {
                 documentUrl: true,
                 documentName: true,
+                isFree: true,
                 course: {
                     select: {
                         userId: true,
@@ -37,12 +38,16 @@ export async function GET(
             return new NextResponse("Document not found", { status: 404 });
         }
 
-        // Check if user has access to the course
-        const hasAccess = await hasActiveCourseAccess(userId, resolvedParams.courseId);
-
         const isCourseOwner = chapter.course.userId === userId;
+        const hasAccess =
+          chapter.isFree ||
+          isCourseOwner ||
+          (await canAccessCourseContentItem(userId, resolvedParams.courseId, {
+            id: resolvedParams.chapterId,
+            type: "chapter",
+          }));
 
-        if (!hasAccess && !isCourseOwner) {
+        if (!hasAccess) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 

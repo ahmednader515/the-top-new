@@ -9,21 +9,18 @@ import { cn } from "@/lib/utils";
 type SubscriptionPurchaseButtonProps = {
   planId: string;
   planTitle: string;
-  isSubscribed?: boolean;
   className?: string;
 };
 
 export function SubscriptionPurchaseButton({
   planId,
   planTitle,
-  isSubscribed = false,
   className,
 }: SubscriptionPurchaseButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   const onPurchase = async () => {
-    if (isSubscribed) return;
     if (isLoading) return;
     setIsLoading(true);
     try {
@@ -37,11 +34,17 @@ export function SubscriptionPurchaseButton({
       }
 
       const payload = (await response.json()) as {
-        expiresAt: string;
+        chaptersPerCourse: number;
+        durationDays: number;
         grantedCoursesCount: number;
+        expiresAt: string | null;
       };
+      const until =
+        payload.expiresAt != null
+          ? ` — أحدث تاريخ انتهاء: ${new Date(payload.expiresAt).toLocaleDateString("ar-EG")}`
+          : "";
       toast.success(
-        `تم الاشتراك في "${planTitle}" بنجاح حتى ${new Date(payload.expiresAt).toLocaleDateString("ar-EG")}`
+        `تم الاشتراك في "${planTitle}" بنجاح — ${payload.chaptersPerCourse} دروس/كورس، ${payload.durationDays} يوماً لكل كورس، ${payload.grantedCoursesCount} كورس${until}`
       );
       router.refresh();
     } catch (error) {
@@ -56,14 +59,14 @@ export function SubscriptionPurchaseButton({
     <button
       type="button"
       onClick={onPurchase}
-      disabled={isLoading || isSubscribed}
+      disabled={isLoading}
       className={cn(
         "inline-flex h-10 w-full items-center justify-center rounded-md text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70",
-        isSubscribed ? "bg-emerald-600 text-white" : "bg-blue-600 text-white hover:bg-blue-700",
+        "bg-blue-600 text-white hover:bg-blue-700",
         className
       )}
     >
-      {isLoading ? "جاري الاشتراك..." : isSubscribed ? "مشترك بالفعل" : "اشترك الآن"}
+      {isLoading ? "جاري الاشتراك..." : "اشترك الآن"}
     </button>
   );
 }

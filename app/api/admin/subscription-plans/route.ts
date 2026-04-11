@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { defaultTitleForChapters, isValidChaptersPerCourse } from "@/lib/subscription-plans";
 
 export async function GET() {
   try {
@@ -22,7 +23,7 @@ export async function GET() {
         title,
         description,
         price,
-        "durationDays" AS "durationDays",
+        "chaptersPerCourse" AS "chaptersPerCourse",
         "targetSubject" AS "targetSubject",
         features,
         "isActive" AS "isActive",
@@ -51,27 +52,27 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const title = String(body?.title ?? "").trim();
+    let title = String(body?.title ?? "").trim();
     const description = String(body?.description ?? "").trim();
     const targetSubject = String(body?.targetSubject ?? "ALL_SUBJECTS").trim() || "ALL_SUBJECTS";
     const isActive = Boolean(body?.isActive ?? true);
     const sortOrder = Number(body?.sortOrder ?? 0);
     const price = Number(body?.price ?? 0);
-    const durationDays = Number(body?.durationDays ?? 30);
+    const chaptersPerCourse = Number(body?.chaptersPerCourse ?? 0);
     const features = Array.isArray(body?.features)
       ? body.features
           .map((item: unknown) => String(item ?? "").trim())
           .filter(Boolean)
       : [];
 
-    if (
-      !title ||
-      !Number.isFinite(price) ||
-      price <= 0 ||
-      !Number.isInteger(durationDays) ||
-      durationDays <= 0 ||
-      features.length === 0
-    ) {
+    if (!isValidChaptersPerCourse(chaptersPerCourse)) {
+      return new NextResponse("Invalid subscription plan payload", { status: 400 });
+    }
+    if (!title) {
+      title = defaultTitleForChapters(chaptersPerCourse);
+    }
+
+    if (!Number.isFinite(price) || price <= 0 || features.length === 0) {
       return new NextResponse("Invalid subscription plan payload", { status: 400 });
     }
 
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
         title,
         description,
         price,
-        "durationDays",
+        "chaptersPerCourse",
         "targetSubject",
         features,
         "isActive",
@@ -97,7 +98,7 @@ export async function POST(req: Request) {
         ${title},
         ${description || null},
         ${price},
-        ${durationDays},
+        ${chaptersPerCourse},
         ${targetSubject},
         ARRAY[${Prisma.join(features)}]::text[],
         ${isActive},
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
         title,
         description,
         price,
-        "durationDays" AS "durationDays",
+        "chaptersPerCourse" AS "chaptersPerCourse",
         "targetSubject" AS "targetSubject",
         features,
         "isActive" AS "isActive",
