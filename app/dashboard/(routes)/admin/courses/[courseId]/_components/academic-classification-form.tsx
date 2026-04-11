@@ -22,12 +22,24 @@ import {
   normalizeSubjectForDisplay,
 } from "@/lib/academics";
 
-const formSchema = z.object({
-  curriculum: z.string().min(1, "المنهج مطلوب"),
-  grade: z.string().min(1, "الصف الدراسي مطلوب"),
-  division: z.string().min(1, "الشعبة مطلوبة"),
-  subject: z.string().min(1, "المادة مطلوبة"),
-});
+const formSchema = z
+  .object({
+    curriculum: z.string().min(1, "المنهج مطلوب"),
+    grade: z.string().min(1, "الصف الدراسي مطلوب"),
+    division: z.string().optional(),
+    subject: z.string().min(1, "المادة مطلوبة"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.grade === "GRADE_11" || data.grade === "GRADE_12") {
+      if (!data.division?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "الشعبة مطلوبة",
+          path: ["division"],
+        });
+      }
+    }
+  });
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -63,6 +75,9 @@ export function AcademicClassificationForm({
   const watchedDivision = scalarOrEmpty(form.watch("division"));
   const watchedSubject = scalarOrEmpty(form.watch("subject"));
 
+  const showDivisionField =
+    watchedGrade === "GRADE_11" || watchedGrade === "GRADE_12";
+
   const divisionOptions = useMemo(() => {
     if (watchedGrade === "GRADE_10") {
       return COURSE_DIVISION_OPTIONS.filter((option) => option.value === "GENERAL");
@@ -85,7 +100,9 @@ export function AcademicClassificationForm({
 
   const subjectOptions = useMemo(() => {
     if (!watchedGrade) return [] as typeof SUBJECT_OPTIONS;
-    if (!watchedDivision) return [] as typeof SUBJECT_OPTIONS;
+    if ((watchedGrade === "GRADE_11" || watchedGrade === "GRADE_12") && !watchedDivision) {
+      return [] as typeof SUBJECT_OPTIONS;
+    }
 
     const selectedDivisionSeeds = watchedDivision &&
       divisionOptions.some((option) => option.value === watchedDivision)
@@ -133,6 +150,10 @@ export function AcademicClassificationForm({
   useEffect(() => {
     if (!watchedGrade) return;
 
+    if (!showDivisionField && watchedDivision) {
+      form.setValue("division", "", { shouldValidate: true });
+    }
+
     const allowedDivisionValues = new Set(divisionOptions.map((option) => option.value));
     if (watchedDivision && !allowedDivisionValues.has(watchedDivision)) {
       form.setValue("division", "", { shouldValidate: true });
@@ -142,16 +163,28 @@ export function AcademicClassificationForm({
     if (watchedSubject && !allowedSubjectValues.has(watchedSubject)) {
       form.setValue("subject", "", { shouldValidate: true });
     }
-  }, [divisionOptions, form, subjectOptions, watchedDivision, watchedSubject]);
+  }, [
+    divisionOptions,
+    form,
+    showDivisionField,
+    subjectOptions,
+    watchedDivision,
+    watchedGrade,
+    watchedSubject,
+  ]);
 
   const onSubmit = async (values: FormValues) => {
     try {
       setIsLoading(true);
+      const divisions =
+        values.grade === "GRADE_11" || values.grade === "GRADE_12"
+          ? [values.division!.trim()]
+          : ["GENERAL"];
       await axios.patch(`/api/courses/${courseId}`, {
         curriculum: values.curriculum,
         grade: values.grade,
         subject: values.subject,
-        divisions: [values.division],
+        divisions,
       });
       toast.success("تم تحديث تصنيف الكورس");
       setIsEditing(false);
@@ -169,6 +202,8 @@ export function AcademicClassificationForm({
   const selectedDivision = COURSE_DIVISION_OPTIONS.find((item) =>
     (initialData.divisions ?? []).includes(item.value)
   );
+  const showDivisionInSummary =
+    initialData.grade === "GRADE_11" || initialData.grade === "GRADE_12";
 
   return (
     <div className="mt-6 border bg-slate-100 rounded-md p-4">
@@ -194,12 +229,14 @@ export function AcademicClassificationForm({
           <p>
             <span className="font-semibold">الصف:</span> {selectedGrade?.label ?? "غير محدد"}
           </p>
+          {showDivisionInSummary && (
+            <p>
+              <span className="font-semibold">الشعبة:</span>{" "}
+              {selectedDivision?.label ?? "غير محدد"}
+            </p>
+          )}
           <p>
             <span className="font-semibold">المادة:</span> {selectedSubject?.label ?? "غير محدد"}
-          </p>
-          <p>
-            <span className="font-semibold">الشعبة:</span>{" "}
-            {selectedDivision?.label ?? "غير محدد"}
           </p>
         </div>
       )}
@@ -265,34 +302,36 @@ export function AcademicClassificationForm({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="division"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>الشعبة</FormLabel>
-                  <Select
-                    disabled={isLoading || !watchedGrade}
-                    onValueChange={(value) => field.onChange(value)}
-                    value={scalarOrEmpty(field.value)}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="اختر الشعبة" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {divisionOptions.map((division) => (
-                        <SelectItem key={division.value} value={division.value}>
-                          {division.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {showDivisionField && (
+              <FormField
+                control={form.control}
+                name="division"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>الشعبة</FormLabel>
+                    <Select
+                      disabled={isLoading || !watchedGrade}
+                      onValueChange={(value) => field.onChange(value)}
+                      value={scalarOrEmpty(field.value)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر الشعبة" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {divisionOptions.map((division) => (
+                          <SelectItem key={division.value} value={division.value}>
+                            {division.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -301,7 +340,11 @@ export function AcademicClassificationForm({
                 <FormItem>
                   <FormLabel>المادة</FormLabel>
                   <Select
-                    disabled={isLoading || !watchedGrade || !watchedDivision}
+                    disabled={
+                      isLoading ||
+                      !watchedGrade ||
+                      (showDivisionField && !watchedDivision)
+                    }
                     onValueChange={(value) => field.onChange(value)}
                     value={scalarOrEmpty(field.value)}
                   >
