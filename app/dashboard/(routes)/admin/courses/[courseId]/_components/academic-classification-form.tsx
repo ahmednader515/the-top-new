@@ -108,6 +108,8 @@ export function AcademicClassificationForm({
       divisionOptions.some((option) => option.value === watchedDivision)
         ? [watchedDivision]
         : [];
+    // Implicit track for primary / preparatory / أولى ثانوي: getAllowedSubjectsForStudent
+    // only needs grade + curriculum for these (division is not used in the API).
     const gradeDefaultSeeds =
       watchedGrade === "GRADE_10"
         ? ["GENERAL"]
@@ -115,7 +117,7 @@ export function AcademicClassificationForm({
           ? ["SCIENTIFIC", "ARTS"]
           : watchedGrade === "GRADE_12"
             ? ["SCIENTIFIC_SCIENCE", "SCIENTIFIC_MATH", "ARTS"]
-            : [];
+            : ["GENERAL"];
     const gradeDivisionSeeds =
       selectedDivisionSeeds.length > 0 ? selectedDivisionSeeds : gradeDefaultSeeds;
 
