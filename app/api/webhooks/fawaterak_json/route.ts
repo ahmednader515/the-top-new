@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { FAWATERAK_DEPOSIT_KIND } from "@/lib/fawaterak/deposit-kind";
 import { getFawaterakSecrets } from "@/lib/fawaterak/config";
 import { generatePaidWebhookHashKey, timingSafeEqualHex } from "@/lib/fawaterak/hmac";
+import { fulfillCoursePurchaseFromGatewayPayment } from "@/lib/purchases/course-purchase-service";
+import { fulfillSubscriptionPurchaseFromGatewayPayment } from "@/lib/purchases/subscription-purchase-service";
 
 export const runtime = "nodejs";
 
@@ -34,6 +37,17 @@ function parsePayLoad(raw: unknown): Record<string, unknown> | null {
   }
   return null;
 }
+
+const SOFT_FULFILL_ERRORS = new Set([
+  "ALREADY_PURCHASED",
+  "NO_BENEFIT",
+  "PROFILE_MISMATCH",
+  "NO_ELIGIBLE_COURSES",
+  "COURSE_NOT_FOUND",
+  "INVALID_PRICE",
+  "PLAN_NOT_FOUND",
+  "PLAN_MISCONFIGURED",
+]);
 
 export async function POST(req: Request) {
   try {
@@ -119,21 +133,65 @@ export async function POST(req: Request) {
           throw new Error("INVOICE_CONFLICT");
         }
 
-        await tx.user.update({
-          where: { id: userId },
-          data: {
-            balance: { increment: deposit.amount },
-          },
-        });
+        const kind = deposit.kind || FAWATERAK_DEPOSIT_KIND.BALANCE_TOPUP;
 
-        await tx.balanceTransaction.create({
-          data: {
-            userId,
-            amount: deposit.amount,
-            type: "DEPOSIT",
-            description: `شحن رصيد عبر Fawaterak — مرجع ${ref ?? invoiceKey}`,
-          },
-        });
+        if (kind === FAWATERAK_DEPOSIT_KIND.BALANCE_TOPUP) {
+          await tx.user.update({
+            where: { id: userId },
+            data: {
+              balance: { increment: deposit.amount },
+            },
+          });
+
+          await tx.balanceTransaction.create({
+            data: {
+              userId,
+              amount: deposit.amount,
+              type: "DEPOSIT",
+              description: `شحن رصيد عبر Fawaterak — مرجع ${ref ?? invoiceKey}`,
+            },
+          });
+        } else if (kind === FAWATERAK_DEPOSIT_KIND.COURSE_PURCHASE) {
+          if (!deposit.courseId) {
+            throw new Error("MISSING_COURSE_ID");
+          }
+          try {
+            await fulfillCoursePurchaseFromGatewayPayment(
+              tx,
+              userId,
+              deposit.courseId,
+              deposit.amount
+            );
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "";
+            if (SOFT_FULFILL_ERRORS.has(msg)) {
+              console.warn("[FAWATERAK_WEBHOOK] Course fulfill soft-skip:", msg);
+            } else {
+              throw e;
+            }
+          }
+        } else if (kind === FAWATERAK_DEPOSIT_KIND.SUBSCRIPTION_PURCHASE) {
+          if (!deposit.subscriptionPlanId) {
+            throw new Error("MISSING_PLAN_ID");
+          }
+          try {
+            await fulfillSubscriptionPurchaseFromGatewayPayment(
+              tx,
+              userId,
+              deposit.subscriptionPlanId,
+              deposit.amount
+            );
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "";
+            if (SOFT_FULFILL_ERRORS.has(msg)) {
+              console.warn("[FAWATERAK_WEBHOOK] Subscription fulfill soft-skip:", msg);
+            } else {
+              throw e;
+            }
+          }
+        } else {
+          throw new Error("UNKNOWN_DEPOSIT_KIND");
+        }
 
         await tx.fawaterakDeposit.update({
           where: { id: depositId },
@@ -160,6 +218,9 @@ export async function POST(req: Request) {
     }
     if (msg === "INVOICE_CONFLICT") {
       return new NextResponse("Conflict", { status: 409 });
+    }
+    if (msg === "MISSING_COURSE_ID" || msg === "MISSING_PLAN_ID" || msg === "UNKNOWN_DEPOSIT_KIND") {
+      return new NextResponse("Invalid deposit metadata", { status: 400 });
     }
     console.error("[FAWATERAK_WEBHOOK]", error);
     return new NextResponse("Internal Error", { status: 500 });

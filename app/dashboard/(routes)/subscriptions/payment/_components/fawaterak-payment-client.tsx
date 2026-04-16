@@ -1,32 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { AlertTriangle, ArrowRight, CreditCard, Info, Loader2 } from "lucide-react";
+import { ArrowRight, CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { sanitizeInternalNextPath } from "@/lib/fawaterak/success-redirect";
 import { cn } from "@/lib/utils";
 
 const PLUGIN_SRC = "https://app.fawaterk.com/fawaterkPlugin/fawaterkPlugin.min.js";
 
+export type CheckoutPreset =
+  | null
+  | { mode: "course"; courseId: string; title: string; amount: number }
+  | { mode: "plan"; planId: string; title: string; amount: number };
+
 type SessionResponse = {
-  /** Bearer token for getPaymentmethods — required by fawaterkPlugin (same as dashboard API key). */
   token: string;
   envType: "test" | "live";
   hashKey: string;
   style: { listing: "horizontal" | "vertical" };
   version: string;
   requestBody: Record<string, unknown>;
+  redirectOutIframe?: boolean;
 };
 
 declare global {
   interface Window {
-    /** Fawaterak’s script expects this global (see official iframe docs: `var pluginConfig = {...}`). */
     pluginConfig?: Record<string, unknown>;
     fawaterkCheckout?: (config?: Record<string, unknown>) => void;
   }
@@ -72,16 +75,25 @@ async function waitForCheckoutFn(maxMs = 20000): Promise<void> {
   throw new Error("timeout");
 }
 
-export function FawaterakPaymentClient() {
-  const [amount, setAmount] = useState("");
+type FawaterakPaymentClientProps = {
+  preset: CheckoutPreset;
+  /** From URL ?next= — success redirect after payment */
+  nextOverride?: string | null;
+};
+
+export function FawaterakPaymentClient({ preset, nextOverride }: FawaterakPaymentClientProps) {
+  const [amount, setAmount] = useState(
+    preset ? String(preset.amount) : ""
+  );
   const [step, setStep] = useState<"form" | "checkout">("form");
   const [isLoading, setIsLoading] = useState(false);
   const [checkoutPayload, setCheckoutPayload] = useState<SessionResponse | null>(null);
-  const [hostname, setHostname] = useState<string | null>(null);
 
   useEffect(() => {
-    setHostname(window.location.hostname);
-  }, []);
+    if (preset) {
+      setAmount(String(preset.amount));
+    }
+  }, [preset]);
 
   useEffect(() => {
     if (step !== "checkout" || !checkoutPayload) return;
@@ -97,35 +109,63 @@ export function FawaterakPaymentClient() {
         style: checkoutPayload.style,
         version: checkoutPayload.version,
         requestBody: checkoutPayload.requestBody,
+        redirectOutIframe: checkoutPayload.redirectOutIframe !== false,
       };
-      // Minified plugin references global `pluginConfig` by name (same as docs’ `var pluginConfig = {...}`).
       window.pluginConfig = pluginConfig;
-      globalThis.pluginConfig = pluginConfig;
+      (globalThis as Record<string, unknown>).pluginConfig = pluginConfig;
       window.fawaterkCheckout(pluginConfig);
     }, 0);
     return () => {
       window.clearTimeout(timer);
       delete window.pluginConfig;
-      delete globalThis.pluginConfig;
+      delete (globalThis as Record<string, unknown>).pluginConfig;
     };
   }, [step, checkoutPayload]);
 
   const onContinue = useCallback(async () => {
-    const parsed = parseFloat(amount.replace(/,/g, "."));
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      toast.error("أدخل مبلغاً صحيحاً");
-      return;
+    const iframeDomain = `https://${window.location.hostname}`;
+
+    const defaultSuccess =
+      preset?.mode === "course"
+        ? "/dashboard"
+        : preset?.mode === "plan"
+          ? "/dashboard/subscriptions"
+          : "/dashboard/subscriptions";
+    const successNext = sanitizeInternalNextPath(nextOverride, defaultSuccess);
+
+    let body: Record<string, unknown>;
+
+    if (preset?.mode === "course") {
+      body = {
+        courseId: preset.courseId,
+        iframeDomain,
+        next: successNext,
+      };
+    } else if (preset?.mode === "plan") {
+      body = {
+        planId: preset.planId,
+        iframeDomain,
+        next: successNext,
+      };
+    } else {
+      const parsed = parseFloat(amount.replace(/,/g, "."));
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        toast.error("أدخل مبلغاً صحيحاً");
+        return;
+      }
+      body = {
+        amount: parsed,
+        iframeDomain,
+        next: successNext,
+      };
     }
+
     setIsLoading(true);
     try {
       const res = await fetch("/api/payments/fawaterak/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: parsed,
-          // Must match fawaterkPlugin header `FAWATERAK-DOMAIN: https://` + location.hostname
-          iframeDomain: `https://${window.location.hostname}`,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const t = await res.text();
@@ -147,86 +187,51 @@ export function FawaterakPaymentClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [amount]);
+  }, [amount, preset, nextOverride]);
+
+  const heading =
+    preset?.mode === "course"
+      ? "شراء كورس بالبطاقة"
+      : preset?.mode === "plan"
+        ? "اشتراك بالبطاقة"
+        : "شحن الرصيد";
+
+  const sub =
+    preset?.mode === "course"
+      ? preset.title
+      : preset?.mode === "plan"
+        ? preset.title
+        : "أدخل المبلغ ثم أكمل الدفع عبر Fawaterak.";
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-4 md:p-6" dir="rtl">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold md:text-2xl">شحن الرصيد</h1>
-          <p className="text-sm text-muted-foreground">
-            الدفع عبر Fawaterak — اختر طريقة الدفع داخل الإطار أدناه.
-          </p>
+    <div
+      className="mx-auto w-full max-w-2xl space-y-5 px-3 py-4 sm:space-y-6 sm:px-4 md:max-w-4xl lg:max-w-6xl xl:max-w-7xl md:py-6 lg:px-6"
+      dir="rtl"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold md:text-2xl">{heading}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{sub}</p>
         </div>
-        <Button variant="outline" asChild size="sm">
-          <Link href="/dashboard/subscriptions">
-            <ArrowRight className="ml-2 h-4 w-4" />
+        <Button variant="outline" size="sm" className="shrink-0 self-start sm:self-center" asChild>
+          <a href="/dashboard/subscriptions" className="inline-flex items-center gap-2">
+            <ArrowRight className="h-4 w-4" />
             العودة للاشتراكات
-          </Link>
+          </a>
         </Button>
       </div>
-
-      <Alert className="border-brand/25 bg-muted/30" dir="rtl">
-        <Info className="h-4 w-4" />
-        <AlertTitle className="text-sm">إذا ظهرت رسالة «Invalid Token or inactive vendor»</AlertTitle>
-        <AlertDescription className="text-xs text-muted-foreground space-y-2">
-          <p>
-            مفتاح الـ API يجب أن يكون من <strong>نفس بيئة</strong> التشغيل: الافتراضي{" "}
-            <code className="rounded bg-muted px-1">FAWATERAK_ENV=test</code> يستخدم{" "}
-            <span dir="ltr">staging.fawaterk.com</span> — انسخ المفتاح من{" "}
-            <strong>البيئة التجريبية</strong>. إذا كان مفتاحك من لوحة الإنتاج فاضبط{" "}
-            <code className="rounded bg-muted px-1">FAWATERAK_ENV=live</code>.
-          </p>
-          <p>
-            تأكد أن حقل <strong>IFRAM Domains</strong> في لوحة Fawaterak يحتوي على{" "}
-            <strong>نفس النطاق الذي تفتحه في المتصفح</strong> (مثلاً{" "}
-            <span dir="ltr" className="whitespace-nowrap">
-              https://thetop-lms.vercel.app
-            </span>{" "}
-            بدون شرطة مائلة في النهاية، كما في الوثائق). أضف منفصلةً{" "}
-            <span dir="ltr" className="whitespace-nowrap">
-              https://localhost
-            </span>{" "}
-            إذا كنت تختبر على الجهاز محلياً.
-          </p>
-          <p>
-            تأكد أن <code className="rounded bg-muted px-1">FAWATERAK_PROVIDER_KEY</code> مطابق لـ{" "}
-            <span dir="ltr">providerKey</span> في لوحة التحكم، وأعد نسخ مفتاح الـ API حرفياً (تأكد من عدم
-            الخلط بين الرقم <span dir="ltr">5</span> والحرف <span dir="ltr">s</span> في النسخ).
-          </p>
-        </AlertDescription>
-      </Alert>
-
-      {hostname === "localhost" && (
-        <Alert dir="rtl" className="border-amber-600/50 bg-amber-500/10 text-foreground">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle className="text-sm text-amber-900 dark:text-amber-100">
-            التطوير على localhost
-          </AlertTitle>
-          <AlertDescription className="text-xs text-muted-foreground space-y-1">
-            <p>
-              الإضافة ترسل للخادم النطاق:{" "}
-              <code dir="ltr" className="rounded bg-muted px-1">
-                https://localhost
-              </code>
-              . يجب إضافة هذا العنوان بالضبط في{" "}
-              <strong>Integrations → IFRAM Domains</strong> في Fawaterak، أو افتح الموقع من نفس{" "}
-              <strong>نطاق الإنتاج</strong> المسجّل (مثلاً{" "}
-              <span dir="ltr">thetop-lms.vercel.app</span>) بدلاً من localhost.
-            </p>
-          </AlertDescription>
-        </Alert>
-      )}
 
       {step === "form" && (
         <Card className="border-brand/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <CreditCard className="h-5 w-5 text-brand" />
-              المبلغ
+              {preset ? "المبلغ المستحق" : "المبلغ"}
             </CardTitle>
             <CardDescription>
-              أدخل المبلغ بالجنيه المصري، ثم اضغط متابعة لعرض طرق الدفع.
+              {preset
+                ? "المبلغ بالجنيه المصري — يطابق سعر الشراء أو الاشتراك."
+                : "المبلغ بالجنيه المصري."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -241,8 +246,9 @@ export function FawaterakPaymentClient() {
                 placeholder="مثال: 500"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="text-lg font-semibold"
+                className={cn("text-lg font-semibold", preset && "bg-muted/60")}
                 dir="ltr"
+                readOnly={Boolean(preset)}
               />
             </div>
             <Button
@@ -267,16 +273,16 @@ export function FawaterakPaymentClient() {
 
       {step === "checkout" && (
         <Card className="border-brand/20 overflow-hidden">
-          <CardHeader className="border-b bg-muted/30">
+          <CardHeader className="border-b bg-muted/30 py-3 sm:py-4">
             <CardTitle className="text-base">إتمام الدفع</CardTitle>
-            <CardDescription>
-              اختر طريقة الدفع من القائمة. بعد النجاح يُحدَّث رصيدك تلقائياً خلال لحظات.
+            <CardDescription className="text-xs sm:text-sm">
+              اختر طريقة الدفع. بعد النجاح ستُوجَّه تلقائياً إلى الصفحة المناسبة.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div
               id="fawaterkDivId"
-              className="min-h-[420px] w-full bg-background"
+              className="min-h-[min(70vh,560px)] w-full bg-background sm:min-h-[520px] lg:min-h-[580px]"
             />
           </CardContent>
         </Card>

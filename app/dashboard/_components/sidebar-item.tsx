@@ -5,7 +5,7 @@ import { LucideIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useNavigationRouter } from "@/lib/hooks/use-navigation-router";
 import { SheetClose } from "@/components/ui/sheet";
-import { isDashboardSectionActive } from "@/lib/dashboard-nav";
+import { isDashboardSectionActive, isSubscriptionsPaymentPath } from "@/lib/dashboard-nav";
 
 interface SidebarItemProps {
     icon: LucideIcon;
@@ -29,9 +29,17 @@ export const SidebarItem = ({
 
     const isActive = pathName ? isDashboardSectionActive(pathName, href, urlSearch || null) : false;
 
+    /** Full reload avoids broken layout after Fawaterak iframe on the payment route. */
+    const useFullPageNavigation = isSubscriptionsPaymentPath(pathName);
+
     const onClick = () => {
-        if (!isActive) router.push(href);
-    }
+        if (isActive) return;
+        if (useFullPageNavigation) {
+            window.location.assign(href);
+            return;
+        }
+        router.push(href);
+    };
 
     const ButtonEl = (
         <button

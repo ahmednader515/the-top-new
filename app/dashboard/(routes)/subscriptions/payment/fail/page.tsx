@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -6,11 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function FawaterakFailPage() {
   return (
-    <div className="mx-auto max-w-lg p-6" dir="rtl">
+    <div className="mx-auto w-full max-w-lg px-4 py-6 sm:px-6" dir="rtl">
       <Card className="border-destructive/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-destructive">
-            <XCircle className="h-6 w-6" />
+            <XCircle className="h-6 w-6 shrink-0" />
             لم يكتمل الدفع
           </CardTitle>
           <CardDescription>
@@ -20,10 +19,14 @@ export default function FawaterakFailPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <Button asChild className="w-full bg-brand text-white hover:bg-brand/90">
-            <Link href="/dashboard/subscriptions/payment">إعادة المحاولة</Link>
+            <a href="/dashboard/subscriptions/payment" target="_top" rel="noopener noreferrer">
+              إعادة المحاولة
+            </a>
           </Button>
           <Button asChild variant="outline" className="w-full">
-            <Link href="/dashboard/subscriptions">الاشتراكات</Link>
+            <a href="/dashboard/subscriptions" target="_top" rel="noopener noreferrer">
+              الاشتراكات
+            </a>
           </Button>
         </CardContent>
       </Card>

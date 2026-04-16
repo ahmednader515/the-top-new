@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { auth } from "@/lib/auth";
 import { ArrowLeft, CreditCard, Wallet, AlertCircle, Ticket, Check } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -146,6 +145,7 @@ export default function PurchasePage({
   };
 
   const hasSufficientBalance = course && userBalance >= (course.price || 0);
+  const paymentGatewayHref = `/dashboard/subscriptions/payment?courseId=${encodeURIComponent(courseId)}&next=${encodeURIComponent(`/courses/${courseId}`)}`;
 
   if (isLoading) {
     return (
@@ -294,43 +294,67 @@ export default function PurchasePage({
 
           {/* Purchase Actions */}
           <div className="space-y-4">
-            {!hasSufficientBalance && (
+            {!hasSufficientBalance && !codeRedeemed && (
               <Card className="border-amber-200 bg-amber-50">
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2 text-amber-700 mb-4">
                     <AlertCircle className="h-5 w-5" />
-                    <span className="font-medium">رصيد غير كافي</span>
+                    <span className="font-medium">رصيد غير كافٍ للشراء من الرصيد</span>
                   </div>
                   <p className="text-amber-700 mb-4">
-                    تحتاج إلى {(course.price || 0) - userBalance} جنيه إضافية لشراء هذه الكورس
+                    يمكنك شحن الرصيد من صفحة الرصيد، أو الدفع مباشرة بالبطاقة بنفس سعر الكورس (
+                    {(course.price || 0).toFixed(2)} جنيه).
                   </p>
-                  <Button asChild className="bg-brand hover:bg-brand/90">
-                    <Link href="/dashboard/balance">إضافة رصيد</Link>
-                  </Button>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button asChild variant="outline" className="border-amber-300 bg-white">
+                      <Link href="/dashboard/balance">شحن الرصيد</Link>
+                    </Button>
+                    <Button asChild className="bg-brand hover:bg-brand/90">
+                      <Link href={paymentGatewayHref}>ادفع بالبطاقة (نفس السعر)</Link>
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
 
-            <Button
-              onClick={handlePurchase}
-              disabled={isPurchasing || !hasSufficientBalance || codeRedeemed}
-              className="w-full bg-brand hover:bg-brand/90 text-white"
-              size="lg"
-            >
-              {isPurchasing ? (
-                "جاري الشراء..."
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                onClick={handlePurchase}
+                disabled={isPurchasing || !hasSufficientBalance || codeRedeemed}
+                className="w-full bg-brand hover:bg-brand/90 text-white"
+                size="lg"
+              >
+                {isPurchasing ? (
+                  "جاري الشراء..."
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    <Wallet className="h-5 w-5" />
+                    شراء من الرصيد
+                  </div>
+                )}
+              </Button>
+              {codeRedeemed ? (
+                <Button variant="outline" size="lg" className="w-full border-slate-300" disabled>
+                  <CreditCard className="h-5 w-5 ml-2" />
+                  ادفع بالبطاقة
+                </Button>
               ) : (
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  شراء الكورس
-                </div>
+                <Button asChild variant="outline" size="lg" className="w-full border-slate-300">
+                  <Link href={paymentGatewayHref}>
+                    <CreditCard className="h-5 w-5 ml-2" />
+                    ادفع بالبطاقة
+                  </Link>
+                </Button>
               )}
-            </Button>
+            </div>
 
             {!codeRedeemed && (
               <div className="text-center text-sm text-muted-foreground">
-                <p>سيتم خصم {course.price?.toFixed(2) || "0.00"} جنيه من رصيدك</p>
-                <p>ستتمكن من الوصول إلى الكورس فوراً بعد الشراء</p>
+                <p>
+                  سعر الكورس: {course.price?.toFixed(2) || "0.00"} جنيه — يُخصم من الرصيد أو يُدفع عبر
+                  البوابة مباشرة.
+                </p>
+                <p className="mt-1">بعد إتمام الدفع ستصلك صلاحية الكورس فوراً.</p>
               </div>
             )}
           </div>

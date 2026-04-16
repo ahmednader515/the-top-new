@@ -7,6 +7,7 @@ import { BookOpen, CircleHelp, LogOut, MessageCircle, UserRound, Wallet } from "
 import { signOut, useSession } from "next-auth/react";
 import { SidebarRoutes } from "./sidebar-routes";
 import { cn } from "@/lib/utils";
+import { isSubscriptionsPaymentPath } from "@/lib/dashboard-nav";
 
 const WHATSAPP_URL = "https://wa.me/201112970189";
 const APP_DOWNLOAD_URL =
@@ -27,6 +28,7 @@ export const Sidebar = ({ closeOnClick = false }: { closeOnClick?: boolean }) =>
     pathname?.startsWith("/dashboard/admin-assistant") ||
     pathname?.startsWith("/dashboard/teacher");
   const isStudent = session?.user?.role === "STUDENT" || session?.user?.role === "USER";
+  const hardNavFromPayment = isSubscriptionsPaymentPath(pathname);
 
   const handleLogout = async () => {
     try {
@@ -70,17 +72,30 @@ export const Sidebar = ({ closeOnClick = false }: { closeOnClick?: boolean }) =>
         {studentButtons.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
+          const className = cn(
+            "flex items-center justify-between rounded-md border px-3 py-2 text-sm transition",
+            isActive
+              ? "border-sky-300 bg-sky-100 text-sky-700 font-semibold"
+              : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+          );
+          if (hardNavFromPayment) {
+            return (
+              <a
+                key={item.label}
+                href={item.href}
+                className={className}
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.assign(item.href);
+                }}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span>{item.label}</span>
+              </a>
+            );
+          }
           return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={cn(
-                "flex items-center justify-between rounded-md border px-3 py-2 text-sm transition",
-                isActive
-                  ? "border-sky-300 bg-sky-100 text-sky-700 font-semibold"
-                  : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-              )}
-            >
+            <Link key={item.label} href={item.href} className={className}>
               <Icon className="h-4 w-4 shrink-0" />
               <span>{item.label}</span>
             </Link>

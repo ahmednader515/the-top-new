@@ -105,3 +105,9 @@ export function isDashboardSectionActive(
 
   return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+/** Full document navigation when leaving this route avoids stale layout after Fawaterak iframe. */
+export function isSubscriptionsPaymentPath(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  return pathname.includes("/dashboard/subscriptions/payment");
+}

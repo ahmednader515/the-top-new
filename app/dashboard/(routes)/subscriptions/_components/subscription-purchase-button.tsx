@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -20,7 +21,7 @@ export function SubscriptionPurchaseButton({
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
-  const onPurchase = async () => {
+  const onPurchaseWithBalance = async () => {
     if (isLoading) return;
     setIsLoading(true);
     try {
@@ -56,17 +57,29 @@ export function SubscriptionPurchaseButton({
   };
 
   return (
-    <button
-      type="button"
-      onClick={onPurchase}
-      disabled={isLoading}
-      className={cn(
-        "inline-flex h-10 w-full items-center justify-center rounded-md text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70",
-        "bg-blue-600 text-white hover:bg-blue-700",
-        className
-      )}
-    >
-      {isLoading ? "جاري الاشتراك..." : "اشترك الآن"}
-    </button>
+    <div className={cn("mt-4 grid gap-2", className)}>
+      <button
+        type="button"
+        onClick={onPurchaseWithBalance}
+        disabled={isLoading}
+        className={cn(
+          "inline-flex h-10 w-full items-center justify-center rounded-md text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70",
+          "bg-blue-600 text-white hover:bg-blue-700"
+        )}
+      >
+        {isLoading ? "جاري الاشتراك..." : "اشترك من الرصيد"}
+      </button>
+      <Link
+        href={`/dashboard/subscriptions/payment?planId=${encodeURIComponent(planId)}`}
+        className={cn(
+          "inline-flex h-10 w-full items-center justify-center rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+        )}
+      >
+        ادفع مباشرة بالبطاقة
+      </Link>
+      <p className="text-center text-[11px] text-muted-foreground leading-snug">
+        يُخصم المبلغ من رصيدك فوراً، أو يُحمَّل تلقائياً من بوابة الدفع بنفس سعر الخطة.
+      </p>
+    </div>
   );
 }

@@ -17,7 +17,7 @@ import {
   Ticket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isDashboardSectionActive } from "@/lib/dashboard-nav";
+import { isDashboardSectionActive, isSubscriptionsPaymentPath } from "@/lib/dashboard-nav";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
@@ -59,6 +59,7 @@ function MobileBottomNavContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
+  const hardNavigatePayment = isSubscriptionsPaymentPath(pathname);
 
   if (status === "loading") {
     return (
@@ -89,16 +90,34 @@ function MobileBottomNavContent() {
           const active = pathname
             ? isDashboardSectionActive(pathname, href, searchParams.toString())
             : false;
+          const className = cn(
+            "flex min-h-[3.6rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium leading-tight transition-colors sm:text-xs",
+            active
+              ? "bg-brand/10 text-brand"
+              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+          );
+          if (hardNavigatePayment) {
+            return (
+              <a
+                key={href}
+                href={href}
+                className={className}
+                aria-current={active ? "page" : undefined}
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.assign(href);
+                }}
+              >
+                <Icon className={cn("h-6 w-6 shrink-0", active && "text-brand")} aria-hidden />
+                <span className="line-clamp-2 text-center">{label}</span>
+              </a>
+            );
+          }
           return (
             <Link
               key={href}
               href={href}
-              className={cn(
-                "flex min-h-[3.6rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium leading-tight transition-colors sm:text-xs",
-                active
-                  ? "bg-brand/10 text-brand"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-              )}
+              className={className}
               aria-current={active ? "page" : undefined}
             >
               <Icon className={cn("h-6 w-6 shrink-0", active && "text-brand")} aria-hidden />

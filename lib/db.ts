@@ -15,6 +15,9 @@ declare global {
 
 export const db = globalThis.prisma ?? createPrismaClient();
 
+/** Transaction client from `db.$transaction` (matches extended Prisma client). */
+export type DbTransactionClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
 if (process.env.NODE_ENV !== "production") {
   globalThis.prisma = db;
 }

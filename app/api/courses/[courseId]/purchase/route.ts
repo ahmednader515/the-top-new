@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { purchaseCourseWithBalance } from "@/lib/purchases/course-purchase-service";
 
 export async function POST(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
@@ -17,117 +17,27 @@ export async function POST(
 
     console.log(`[PURCHASE_ATTEMPT] User ${userId} attempting to purchase course ${resolvedParams.courseId}`);
 
-    const course = await db.course.findUnique({
-      where: {
-        id: resolvedParams.courseId,
-        isPublished: true,
-      },
-    });
+    const result = await purchaseCourseWithBalance(userId, resolvedParams.courseId);
 
-    if (!course) {
-      console.log(`[PURCHASE_ERROR] Course ${resolvedParams.courseId} not found or not published`);
-      return new NextResponse("Course not found or not available for purchase", { status: 404 });
+    if (!result.ok) {
+      const map: Record<string, { status: number; body: string }> = {
+        COURSE_NOT_FOUND: { status: 404, body: "Course not found or not available for purchase" },
+        ALREADY_PURCHASED: { status: 400, body: "You have already purchased this course" },
+        USER_NOT_FOUND: { status: 404, body: "User not found" },
+        INSUFFICIENT_BALANCE: { status: 400, body: "Insufficient balance" },
+        INVALID_PRICE: { status: 400, body: "This course cannot be purchased for a fee" },
+        TRANSACTION_FAILED: { status: 500, body: "Internal Error" },
+      };
+      const m = map[result.error] ?? { status: 500, body: "Internal Error" };
+      return new NextResponse(m.body, { status: m.status });
     }
-
-    // Check if user already purchased this course
-    const existingPurchase = await db.purchase.findUnique({
-      where: {
-        userId_courseId: {
-          userId,
-          courseId: resolvedParams.courseId,
-        },
-      },
-    });
-
-    const now = new Date();
-    const hasNonExpiredAccess =
-      existingPurchase &&
-      existingPurchase.status === "ACTIVE" &&
-      (!existingPurchase.expiresAt || existingPurchase.expiresAt > now);
-
-    if (hasNonExpiredAccess) {
-      console.log(`[PURCHASE_ERROR] User ${userId} already has an active purchase for course ${resolvedParams.courseId}`);
-      return new NextResponse("You have already purchased this course", { status: 400 });
-    }
-
-    // Get user with current balance
-    const user = await db.user.findUnique({
-      where: {
-        id: userId,
-      },
-      select: {
-        balance: true,
-      },
-    });
-
-    if (!user) {
-      return new NextResponse("User not found", { status: 404 });
-    }
-
-    const coursePrice = course.price || 0;
-
-    // Check if user has sufficient balance
-    if (user.balance < coursePrice) {
-      console.log(`[PURCHASE_ERROR] User ${userId} has insufficient balance. Required: ${coursePrice}, Available: ${user.balance}`);
-      return new NextResponse("Insufficient balance", { status: 400 });
-    }
-
-    // Create purchase and update balance in a transaction
-    const result = await db.$transaction(async (tx) => {
-      let purchase;
-      if (existingPurchase) {
-        purchase = await tx.purchase.update({
-          where: {
-            id: existingPurchase.id,
-          },
-          data: {
-            status: "ACTIVE",
-            // Direct course purchase should be lifetime access.
-            expiresAt: null,
-          },
-        });
-      } else {
-        purchase = await tx.purchase.create({
-          data: {
-            userId,
-            courseId: resolvedParams.courseId,
-            status: "ACTIVE",
-            expiresAt: null,
-          },
-        });
-      }
-
-      // Update user balance
-      const updatedUser = await tx.user.update({
-        where: {
-          id: userId,
-        },
-        data: {
-          balance: {
-            decrement: coursePrice,
-          },
-        },
-      });
-
-      // Create balance transaction record
-      await tx.balanceTransaction.create({
-        data: {
-          userId,
-          amount: -coursePrice,
-          type: "PURCHASE",
-          description: `تم شراء الكورس: ${course.title}`,
-        },
-      });
-
-      return { purchase, updatedUser };
-    });
 
     console.log(`[PURCHASE_SUCCESS] User ${userId} successfully purchased course ${resolvedParams.courseId}`);
 
     return NextResponse.json({
       success: true,
-      purchaseId: result.purchase.id,
-      newBalance: result.updatedUser.balance,
+      purchaseId: result.purchaseId,
+      newBalance: result.newBalance,
     });
   } catch (error) {
     console.error("[PURCHASE_ERROR] Unexpected error:", error);
@@ -136,4 +46,4 @@ export async function POST(
     }
     return new NextResponse("Internal Error", { status: 500 });
   }
-} 
+}

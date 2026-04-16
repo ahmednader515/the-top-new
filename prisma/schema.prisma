@@ -191,12 +191,16 @@ model BalanceTransaction {
     @@index([userId])
 }
 
-/// Pending / completed balance top-ups via Fawaterak iframe (webhook credits User.balance).
+/// Pending / completed Fawaterak payments: balance top-up, or direct course / subscription purchase.
 model FawaterakDeposit {
     id String @id @default(uuid())
     userId String
     amount Float
     currency String @default("EGP")
+    /// BALANCE_TOPUP | COURSE_PURCHASE | SUBSCRIPTION_PURCHASE
+    kind String @default("BALANCE_TOPUP")
+    courseId String?
+    subscriptionPlanId String?
     status String // PENDING | COMPLETED | FAILED
     invoiceId Int? @unique
     invoiceKey String?
@@ -207,6 +211,7 @@ model FawaterakDeposit {
 
     @@index([userId])
     @@index([status])
+    @@index([kind])
 }
 
 model SubscriptionPlan {
