@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import { FAWATERAK_DEPOSIT_KIND } from "@/lib/fawaterak/deposit-kind";
+import { FAWATERAK_DEPOSIT_KIND, resolveFawaterakFulfillmentKind } from "@/lib/fawaterak/deposit-kind";
 import { getFawaterakSecrets } from "@/lib/fawaterak/config";
 import { generatePaidWebhookHashKey, timingSafeEqualHex } from "@/lib/fawaterak/hmac";
 import { fulfillCoursePurchaseFromGatewayPayment } from "@/lib/purchases/course-purchase-service";
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
           throw new Error("INVOICE_CONFLICT");
         }
 
-        const kind = deposit.kind || FAWATERAK_DEPOSIT_KIND.BALANCE_TOPUP;
+        const kind = resolveFawaterakFulfillmentKind(deposit);
 
         if (kind === FAWATERAK_DEPOSIT_KIND.BALANCE_TOPUP) {
           await tx.user.update({
