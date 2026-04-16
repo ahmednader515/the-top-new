@@ -31,6 +31,7 @@ model User {
   purchases               Purchase[]
   userProgress            UserProgress[]
   balanceTransactions     BalanceTransaction[]
+  fawaterakDeposits       FawaterakDeposit[]
   quizResults             QuizResult[]
   createdSubscriptionPlans SubscriptionPlan[]
   createdPurchaseCodes    PurchaseCode[] @relation("CodeCreator")
@@ -188,6 +189,24 @@ model BalanceTransaction {
     updatedAt DateTime @updatedAt
 
     @@index([userId])
+}
+
+/// Pending / completed balance top-ups via Fawaterak iframe (webhook credits User.balance).
+model FawaterakDeposit {
+    id String @id @default(uuid())
+    userId String
+    amount Float
+    currency String @default("EGP")
+    status String // PENDING | COMPLETED | FAILED
+    invoiceId Int? @unique
+    invoiceKey String?
+    referenceNumber String?
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([userId])
+    @@index([status])
 }
 
 model SubscriptionPlan {
