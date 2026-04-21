@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 
 export const Footer = () => {
   const pathname = usePathname();
@@ -41,6 +42,21 @@ export const Footer = () => {
               <p className="font-semibold text-brand">واتساب : 01112970189</p>
             </a>
           </div>
+
+          <nav className="mb-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
+            <Link className="hover:text-foreground underline-offset-4 hover:underline" href="/terms">
+              الشروط والأحكام
+            </Link>
+            <Link className="hover:text-foreground underline-offset-4 hover:underline" href="/privacy">
+              سياسة الخصوصية
+            </Link>
+            <Link className="hover:text-foreground underline-offset-4 hover:underline" href="/refund">
+              سياسة الاسترجاع
+            </Link>
+            <Link className="hover:text-foreground underline-offset-4 hover:underline" href="/contact">
+              بيانات التواصل والعنوان
+            </Link>
+          </nav>
 
           <p>© {new Date().getFullYear()} Mordesu Studio. جميع الحقوق محفوظة</p>
         </div>

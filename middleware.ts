@@ -17,6 +17,13 @@ function getDashboardUrlByRole(role: string): string {
 
 export default withAuth(
   function middleware(req) {
+    const isPublicPage =
+      req.nextUrl.pathname === "/" ||
+      req.nextUrl.pathname === "/terms" ||
+      req.nextUrl.pathname === "/privacy" ||
+      req.nextUrl.pathname === "/refund" ||
+      req.nextUrl.pathname === "/contact";
+
     const isBlockedTeacherPage =
       req.nextUrl.pathname.startsWith("/dashboard/teacher/balances") ||
       req.nextUrl.pathname.startsWith("/dashboard/teacher/create-account") ||
@@ -74,7 +81,7 @@ export default withAuth(
 
     // If user is not authenticated and trying to access protected routes
     // But exclude payment status page from this check
-    if (!req.nextauth.token && !isAuthPage && !isPaymentStatusPage) {
+    if (!req.nextauth.token && !isAuthPage && !isPaymentStatusPage && !isPublicPage) {
       return NextResponse.redirect(new URL("/sign-in", req.url), { status: 302 });
     }
 
