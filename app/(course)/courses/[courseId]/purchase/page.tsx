@@ -310,7 +310,7 @@ export default function PurchasePage({
                       <Link href="/dashboard/balance">شحن الرصيد</Link>
                     </Button>
                     <Button asChild className="bg-brand hover:bg-brand/90">
-                      <Link href={paymentGatewayHref}>ادفع بالبطاقة (نفس السعر)</Link>
+                      <Link href={paymentGatewayHref}>طرق دفع اخري (فوري) (نفس السعر)</Link>
                     </Button>
                   </div>
                 </CardContent>
@@ -336,13 +336,13 @@ export default function PurchasePage({
               {codeRedeemed ? (
                 <Button variant="outline" size="lg" className="w-full border-slate-300" disabled>
                   <CreditCard className="h-5 w-5 ml-2" />
-                  ادفع بالبطاقة
+                  طرق دفع اخري (فوري)
                 </Button>
               ) : (
                 <Button asChild variant="outline" size="lg" className="w-full border-slate-300">
                   <Link href={paymentGatewayHref}>
                     <CreditCard className="h-5 w-5 ml-2" />
-                    ادفع بالبطاقة
+                    طرق دفع اخري (فوري)
                   </Link>
                 </Button>
               )}

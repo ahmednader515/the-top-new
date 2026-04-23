@@ -24,6 +24,13 @@ export default withAuth(
       req.nextUrl.pathname === "/refund" ||
       req.nextUrl.pathname === "/contact";
 
+    // If user is authenticated and hits the homepage, redirect to role dashboard.
+    if (req.nextUrl.pathname === "/" && req.nextauth.token) {
+      const userRole = req.nextauth.token?.role || "STUDENT";
+      const dashboardUrl = getDashboardUrlByRole(userRole as string);
+      return NextResponse.redirect(new URL(dashboardUrl, req.url));
+    }
+
     const isBlockedTeacherPage =
       req.nextUrl.pathname.startsWith("/dashboard/teacher/balances") ||
       req.nextUrl.pathname.startsWith("/dashboard/teacher/create-account") ||

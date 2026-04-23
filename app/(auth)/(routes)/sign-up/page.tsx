@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,14 +55,28 @@ export default function SignUpPage() {
 
   const passwordChecks = validatePasswords();
   const isGrade12 = formData.grade === "GRADE_12";
-  const isGrade10 = formData.grade === "GRADE_10";
   const divisionOptions = getSignupDivisionOptions(formData.grade);
+  const shouldHideDivision = Boolean(formData.grade) && divisionOptions.length === 1;
   const requiresCurriculumChoice = !isGrade12;
   const canSubmitAcademicData =
     !!formData.grade &&
     !!formData.division &&
     !!formData.secondLanguage &&
     (requiresCurriculumChoice ? !!formData.curriculum : true);
+
+  useEffect(() => {
+    if (!formData.grade) return;
+    if (divisionOptions.length !== 1) return;
+    const onlyDivision = divisionOptions[0]?.value;
+    if (!onlyDivision) return;
+
+    if (formData.division !== onlyDivision) {
+      setFormData((prev) => ({
+        ...prev,
+        division: onlyDivision,
+      }));
+    }
+  }, [formData.grade, formData.division, divisionOptions]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -211,18 +225,22 @@ export default function SignUpPage() {
                 placeholder="+20XXXXXXXXXX"
               />
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className={`grid grid-cols-1 gap-4 ${shouldHideDivision ? "" : "md:grid-cols-2"}`}>
               <div className="space-y-2">
                 <Label>الصف الدراسي</Label>
                 <Select
                   value={formData.grade}
                   onValueChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      grade: value,
-                      division: value === "GRADE_10" ? "GENERAL" : "",
-                      curriculum: "",
-                    }))
+                    setFormData((prev) => {
+                      const options = getSignupDivisionOptions(value);
+                      const onlyDivision = options.length === 1 ? options[0]?.value ?? "" : "";
+                      return {
+                        ...prev,
+                        grade: value,
+                        division: onlyDivision,
+                        curriculum: "",
+                      };
+                    })
                   }
                   disabled={isLoading}
                 >
@@ -238,37 +256,39 @@ export default function SignUpPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>الشعبة</Label>
-                <Select
-                  value={formData.division}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      division: value,
-                      curriculum: isGrade12
-                        ? value.includes("_ARABIC")
-                          ? "ARABIC_CURRICULUM"
-                          : value.includes("_LANGUAGES")
-                            ? "LANGUAGES_CURRICULUM"
-                            : prev.curriculum
-                        : prev.curriculum,
-                    }))
-                  }
-                  disabled={isLoading || !formData.grade}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder={isGrade10 ? "عام (لا يوجد شعبات)" : "اختر الشعبة"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {divisionOptions.map((division) => (
-                      <SelectItem key={division.value} value={division.value}>
-                        {division.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!shouldHideDivision && (
+                <div className="space-y-2">
+                  <Label>الشعبة</Label>
+                  <Select
+                    value={formData.division}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        division: value,
+                        curriculum: isGrade12
+                          ? value.includes("_ARABIC")
+                            ? "ARABIC_CURRICULUM"
+                            : value.includes("_LANGUAGES")
+                              ? "LANGUAGES_CURRICULUM"
+                              : prev.curriculum
+                          : prev.curriculum,
+                      }))
+                    }
+                    disabled={isLoading || !formData.grade}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="اختر الشعبة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {divisionOptions.map((division) => (
+                        <SelectItem key={division.value} value={division.value}>
+                          {division.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             {!isGrade12 && (
               <div className="space-y-2">
