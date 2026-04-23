@@ -6,10 +6,12 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   getLockedByOutlineIndex,
+  hasActiveCourseAccess,
   mergeChaptersAndQuizzesForOutline,
 } from "@/lib/course-access";
 import { cn } from "@/lib/utils";
 import { normalizeSubjectForDisplay, SUBJECT_LABEL_BY_VALUE } from "@/lib/academics";
+import { Button } from "@/components/ui/button";
 
 export default async function CourseContentPage({
   params,
@@ -27,6 +29,7 @@ export default async function CourseContentPage({
       id: true,
       title: true,
       subject: true,
+      price: true,
       user: {
         select: {
           fullName: true,
@@ -74,6 +77,7 @@ export default async function CourseContentPage({
     quizzes.map((q) => ({ id: q.id, position: q.position }))
   );
 
+  const hasAccess = await hasActiveCourseAccess(userId, courseId);
   const lockedByIndex = await getLockedByOutlineIndex(userId, courseId, outline);
 
   const chapterById = new Map(chapters.map((c) => [c.id, c]));
@@ -82,6 +86,7 @@ export default async function CourseContentPage({
   const paidChapters = chapters.filter((c) => !c.isFree);
   const completedCount = paidChapters.filter((c) => c.userProgress?.[0]?.isCompleted).length;
   const totalCount = paidChapters.length;
+  const showPurchaseButton = totalCount > 0 && !hasAccess;
 
   const normalizedSubject = normalizeSubjectForDisplay(course.subject);
   const subjectLabel = normalizedSubject
@@ -120,6 +125,16 @@ export default async function CourseContentPage({
               <>لا توجد دروس مدفوعة في هذا الكورس</>
             )}
           </p>
+
+          {showPurchaseButton && (
+            <div className="mt-4 flex justify-center">
+              <Button asChild className="bg-brand hover:bg-brand/90 text-white">
+                <Link href={`/courses/${course.id}/purchase`}>
+                  شراء هذا الكورس{course.price != null ? ` (${course.price} جنيه)` : ""}
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 space-y-3">
