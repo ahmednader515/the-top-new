@@ -31,17 +31,7 @@ const CoursesPage = async ({ searchParams }: CoursesPageProps) => {
     const courses =
         activeTab === "courses"
             ? await db.course.findMany({
-                  where: isAdmin
-                      ? {
-                            user: {
-                                role: {
-                                    in: ["TEACHER", "ADMIN_ASSISTANT"],
-                                },
-                            },
-                        }
-                      : {
-                            userId,
-                        },
+                  where: isAdmin ? {} : { userId },
                   include: {
                       user: {
                           select: {
@@ -130,7 +120,7 @@ const CoursesPage = async ({ searchParams }: CoursesPageProps) => {
                         {isAdmin && activeTab === "subscriptions"
                             ? "إدارة خطط الاشتراك من نفس صفحة الكورسات."
                             : isAdmin
-                            ? "عرض وإدارة كل الكورسات التي أنشأها المعلمون، مع بيانات المعلم والمادة لكل كورس."
+                            ? "عرض وإدارة كل الكورسات المنشأة في المنصة، مع بيانات صاحب الكورس والمادة لكل كورس."
                             : "أنشئ كورسًا جديدًا ثم أدِر كل شيء من صفحة واحدة: التفاصيل، الدروس، الاختبارات، نتائج الطلاب، والمسجّلين. استخدم زر «تعديل الكورس» بجانب أي كورس."}
                     </p>
                 </div>
