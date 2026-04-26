@@ -116,33 +116,21 @@ const StudyContentPage = async ({
     },
   });
 
-  const subjectTeacherUniqueMap = new Map<string, (typeof courses)[number]>();
+  const coursesBySubject = buildSubjectMap();
   for (const course of courses) {
     const normalizedSubject = normalizeSubjectForDisplay(course.subject);
-    if (!normalizedSubject) continue;
-    const dedupeKey = `${normalizedSubject}:${course.user.id}`;
-    if (!subjectTeacherUniqueMap.has(dedupeKey)) {
-      subjectTeacherUniqueMap.set(dedupeKey, {
-        ...course,
-        subject: normalizedSubject,
-      });
-    }
-  }
-
-  const coursesBySubject = buildSubjectMap();
-  for (const course of subjectTeacherUniqueMap.values()) {
-    if (!course.subject || !Object.prototype.hasOwnProperty.call(coursesBySubject, course.subject)) {
+    if (!normalizedSubject || !Object.prototype.hasOwnProperty.call(coursesBySubject, normalizedSubject)) {
       continue;
     }
     const teacherImageOverride = (course as { teacherImageUrl?: string | null }).teacherImageUrl;
-    coursesBySubject[course.subject as SubjectValue].push({
+    coursesBySubject[normalizedSubject as SubjectValue].push({
       id: course.id,
       title: course.title,
       imageUrl: course.imageUrl,
       teacherId: course.user.id,
       teacherName: course.user.fullName,
       teacherImage: teacherImageOverride || course.user.image,
-      subject: course.subject,
+      subject: normalizedSubject,
     });
   }
 
@@ -244,8 +232,8 @@ const StudyContentPage = async ({
                           />
                         </div>
                         <div className="min-w-0 flex-1 space-y-1">
-                          <p className="truncate text-sm font-semibold md:text-base">{course.teacherName}</p>
-                          <p className="truncate text-xs text-muted-foreground md:text-sm">{course.title}</p>
+                          <p className="truncate text-sm font-semibold md:text-base">{course.title}</p>
+                          <p className="truncate text-xs text-muted-foreground md:text-sm">{course.teacherName}</p>
                         </div>
                         <ChevronRight className="h-4 w-4 text-slate-500" />
                       </div>
@@ -267,7 +255,7 @@ const StudyContentPage = async ({
             <h2 className="text-base font-semibold md:text-lg">
               {currentSubjectConfig?.icon} {currentSubjectConfig?.label}
             </h2>
-            <span className="text-sm text-muted-foreground">{currentSubjectCourses.length} مدرس</span>
+            <span className="text-sm text-muted-foreground">{currentSubjectCourses.length} كورس</span>
           </div>
 
           <div className="space-y-3">
@@ -287,8 +275,8 @@ const StudyContentPage = async ({
                     />
                   </div>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <p className="truncate text-sm font-semibold md:text-base">{course.teacherName}</p>
-                    <p className="truncate text-xs text-muted-foreground md:text-sm">{course.title}</p>
+                    <p className="truncate text-sm font-semibold md:text-base">{course.title}</p>
+                    <p className="truncate text-xs text-muted-foreground md:text-sm">{course.teacherName}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-slate-500" />
                 </div>
